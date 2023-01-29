@@ -13,7 +13,7 @@ logging.basicConfig(format='[%(levelname)s] [%(asctime)s] '
 
 
 class NpEncoder(json.JSONEncoder):
-    """Encodes Python data, including numpy array to json string
+    """Encodes Numpy data, to json string
     """
 
     def default(self, obj: object) -> object:
@@ -43,7 +43,7 @@ class Player:
     def play(self,
              board: numpy.ndarray,
              cur_player: str,
-             players: Dict[str, Dict[str, object]],
+             players: Dict[str, Dict[str, int | Dict[int, int]]],
              scores: Dict['Player', int]) -> Tuple[Tuple[int, int], int]:
         """Play one move in the game
 
@@ -64,14 +64,14 @@ class Player:
         p = subprocess.Popen(['some_command_to_run_your_bot'],
                              stdout=subprocess.PIPE, stdin=subprocess.PIPE,
                              stderr=subprocess.STDOUT)
-        return json.loads(p.communicate(input=bytes(json_input))[0])
+        return json.loads(p.communicate(input=json_input.encode())[0])
 
 
 class RandomPlayer(Player):
     def play(self,
              board: numpy.ndarray,
              cur_player: str,
-             players: Dict[str, Dict[str, object]],
+             players: Dict[str, Dict[str, int | Dict[int, int]]],
              scores: Dict[Player, int]) -> Tuple[Tuple[int, int], int]:
 
         # Check which positions are free and choose one of them at random
@@ -110,29 +110,35 @@ class Game:
     MAX_TILE_VALUE = 4
     DEFAULT_BOARDLEN = 8
 
-    def __init__(self, boardlen: int = DEFAULT_BOARDLEN):
-        self.board: Optional[numpy.ndarray] = None
-        self.boardlen: int = boardlen
-        self.cur_player: Optional[Player] = None
-        self.players: Dict[Player, Dict[str, object]] = {}
-        self.tiles: Dict[int, int] = {}
-        self.reset_game(boardlen)
-        logging.debug('Initialized game')
+    def __init__(self, boardlen: int = DEFAULT_BOARDLEN,
+                 player1: Player | None = None,
+                 player2: Player | None = None):
+        """Initialize a new Isis and Osiris game
 
-    def reset_game(self,
-                   boardlen: int = DEFAULT_BOARDLEN,
-                   player1: Player = None,
-                   player2: Player = None) -> None:
-        """Resets the game and initializes the two players if they are given.
+        The Game class has the following attributes:
+            board (numpy.ndarray[object]): board array. Elements are:
+                None  : empty place on the board
+                Player: stone of Player
+                int   : card with the corresponding value
+            boardlen (int): length of the board sides
+            cur_player (Player): current player
+            players Dict[Player, Dict[str, int | Dict[int, int]]]: dict with
+                Player: player object as key
+                Dict[str, int | Dict[int, int]]: dict with:
+                    str: either 'Stones' or 'Tiles' as key
+                    int: number of strones left (with key: 'Stones')
+                    Dict[int, int]: dict with:
+                        int: value of a card (1, -1, 2, -2, ...)
+                        int: number of cards of that value
+            tiles (Dict[int, int]): dict with:
+                int: value of a card (1, -1, 2, -2, ...)
+                int: number of cards of that value
 
         Args:
-            boardlen (int): size of the board. Must be multiple of 4.
-            player1 (Player, optional): First player. Defaults to None.
-            player2 (Player, optional): Second player. Defaults to None.
-
-        Notes:
-            player1 and player2 *must* provide the .play() method, with the
-            arguments given by the Player template class.
+            boardlen (int, optional): board side length.
+                                      Defaults to DEFAULT_BOARDLEN.
+            player1 (Player, optional): player 1
+            player2 (Player, optional): player 2          
 
         Raises:
             ValueError: if the boardlen is not a multiple of 4 or if one of
@@ -142,23 +148,35 @@ class Game:
             raise ValueError(f'boardlen must be a multiple of 4, '
                              f'not {boardlen}.')
 
-        num_items = boardlen ** 2 // 4
         self.board = numpy.full((boardlen, boardlen), None)
-        self.boardlen = boardlen
-        self.players = {}
-        self.cur_player = None
+        self.boardlen: int = boardlen
+        self.cur_player: Player = Player()
+        self.players: Dict[Player, Dict[str, object]] = {}
+        self.tiles: Dict[int, int] = {}
+        self.reset_game()
+        self.add_players(player1, player2)
+        logging.debug('Initialized game')
+
+    def reset_game(self) -> None:
+        """Resets the game.
+
+        Args:
+            player1 (Player): First player.
+            player2 (Player): Second player.
+
+        Notes:
+            player1 and player2 *must* provide the .play() method, with the
+            arguments given by the Player template class.
+        """
+
+        num_items = self.boardlen ** 2 // 4
         self.tiles = {}
         for i, t in enumerate(range(1, self.MAX_TILE_VALUE + 1)):
             tiles_left = num_items - sum(self.tiles.values())
             self.tiles[t] = tiles_left // (2 * (self.MAX_TILE_VALUE - i))
             self.tiles[-t] = self.tiles[t]
 
-        if player1 and player2:
-            logging.debug(f'Reset game to boardlen {boardlen}.')
-            self.add_players(player1, player2)
-        else:
-            logging.debug(f'Reset game to boardlen {boardlen}. Did not add '
-                          f'any players. Players are: {self.players.keys()}')
+        logging.debug(f'Reset game.')
 
     def add_players(self, player1: Player, player2: Player) -> None:
         """Adds the players to the game. Players must be _instances_ of Player
