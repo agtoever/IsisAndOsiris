@@ -1,104 +1,50 @@
 import numpy
+from pytest import raises
+
+"""
 import random
 import json
 import subprocess
 import itertools
 import logging
 from typing import Dict, Tuple
+"""
 
-LOG_LEVEL = logging.ERROR
-logging.basicConfig(format='[%(levelname)s] [%(asctime)s] '
-                           '[%(module)s:(%(lineno)d] %(message)s',
-                    level=LOG_LEVEL)
+import IsisAndOsiris as IAO
 
 
-class NpEncoder(json.JSONEncoder):
-    """Encodes Numpy data, to json string
-    """
+def test_NpEncoder():
+    encoder = IAO.NpEncoder()
 
-    def default(self, obj: object) -> object:
-        """Default encoder for encoding obj object
-
-        Args:
-            obj (object): object to be encoded
-
-        Returns:
-            [object]: json encodable object
-        """
-        if isinstance(obj, numpy.integer):
-            return int(obj)
-        elif isinstance(obj, numpy.floating):
-            return float(obj)
-        elif isinstance(obj, numpy.ndarray):
-            return obj.tolist()
-        else:
-            return super(NpEncoder, self).default(obj)
+    assert isinstance(encoder.default(numpy.intc(12)), int)
+    assert isinstance(encoder.default(numpy.float16(12.3)), float)
+    assert encoder.default(numpy.ndarray([1, 2, 3]) == [1, 2, 3])
 
 
-class Player():
-    def __init__(self):
-        # You may initialise class attributes here...
+def test_Game_init():
+    class NoPlayer:
         pass
 
-    def play(self,
-             board: numpy.ndarray,
-             cur_player: str,
-             players: Dict[str, Dict[str, int | Dict[int, int]]],
-             scores: Dict['Player', int]) -> Tuple[Tuple[int, int], int]:
-        """Play one move in the game
+    boardlen = 24
+    player1 = IAO.Player()
+    player2 = IAO.Player()
+    no_player = NoPlayer()
+    g = IAO.Game(boardlen)
+    g.reset_game()
+    g.add_players(player1, player2)
 
-        Args:
-            board (numpy.ndarray): Current board positions
-            cur_player: Name of the current player (key for players dict)
-            players (dict): Stones and Tiles for all players
-            scores (dict): Current scores for all players
+    assert g.boardlen == boardlen
+    assert all(item == None
+               for item in numpy.nditer(g.board, flags=['refs_ok']))
+    assert player1 in g.players
+    assert player2 in g.players
 
-        Returns:
-            tuple: ((x: int, y: int) position of the move,
-                    item: int 0 for stone, tile value for tile.)
-        """
-        # You may add your Python code here or... call subprocess.Popen()
-        # and pass a json string via stdin like this:
-        json_input = json.dumps([board, cur_player, players, scores],
-                                cls=NpEncoder)
-        p = subprocess.Popen(['some_command_to_run_your_bot'],
-                             stdout=subprocess.PIPE, stdin=subprocess.PIPE,
-                             stderr=subprocess.STDOUT)
-        return json.loads(p.communicate(input=json_input.encode())[0])
+    with raises(ValueError):
+        g.add_players(player1, no_player)
 
 
-class RandomPlayer(Player):
-    def play(self,
-             board: numpy.ndarray,
-             cur_player: str,
-             players: Dict[str, Dict[str, int | Dict[int, int]]],
-             scores: Dict[Player, int]) -> Tuple[Tuple[int, int], int]:
-
-        # Check which positions are free and choose one of them at random
-        indices = [(x, y) for (x, y), val in numpy.ndenumerate(board)
-                   if val is None]
-        play_position = random.choice(indices)
-
-        # Choose a random play, but select another if that move isn't valid
-        play = random.choice(['Tiles', 'Stones'])
-        if play == 'Tiles' and not sum(players[cur_player][play].values()):
-            play = 'Stones'
-        elif play == 'Stones' and players[cur_player][play] == 0:
-            play = 'Tiles'
-
-        # If play == 'Tiles', select one of the remaining tiles
-        if play == 'Tiles':
-            tile = random.choice(
-                [k for k in players[cur_player]['Tiles']
-                 if players[cur_player]['Tiles'][k] > 0])
-        else:
-            tile = 0
-
-        return (play_position, tile)
-
-
+"""
 class Game:
-    """Isis and Osiris game
 
     Note:
         internal player representation is a dict, with the actual player
@@ -106,14 +52,12 @@ class Game:
         class, the player object is replaced by the player's class name.
         This is to prevent obuse of the other player .play() mechanism to
         anticipate on other player's moves.
-    """
     MAX_TILE_VALUE = 4
     DEFAULT_BOARDLEN = 8
 
     def __init__(self, boardlen: int = DEFAULT_BOARDLEN,
                  player1: Player | None = None,
                  player2: Player | None = None):
-        """Initialize a new Isis and Osiris game
 
         The Game class has the following attributes:
             board (numpy.ndarray[object]): board array. Elements are:
@@ -143,7 +87,6 @@ class Game:
         Raises:
             ValueError: if the boardlen is not a multiple of 4 or if one of
             the players doesn't have a .play() method.
-        """
         if boardlen % 4 != 0:
             raise ValueError(f'boardlen must be a multiple of 4, '
                              f'not {boardlen}.')
@@ -154,12 +97,11 @@ class Game:
         self.players: Dict[Player, Dict[str, object]] = {}
         self.tiles: Dict[int, int] = {}
         self.reset_game()
-        if player1 and player2:
-            self.add_players(player1, player2)
+        self.add_players(player1, player2)
         logging.debug('Initialized game')
 
     def reset_game(self) -> None:
-        """Resets the game.
+
 
         Args:
             player1 (Player): First player.
@@ -168,7 +110,7 @@ class Game:
         Notes:
             player1 and player2 *must* provide the .play() method, with the
             arguments given by the Player template class.
-        """
+
 
         num_items = self.boardlen ** 2 // 4
         self.tiles = {}
@@ -180,7 +122,7 @@ class Game:
         logging.debug('Reset game.')
 
     def add_players(self, player1: Player, player2: Player) -> None:
-        """Adds the players to the game. Players must be _instances_ of Player
+
         player1 is the first player to play (and thus, player 2 is the last)
         This method also initializes the players (sets Stones and Tiles)
 
@@ -190,7 +132,7 @@ class Game:
 
         Raises:
             ValueError: if the player doesn't have a .play() method
-        """
+
         if len(self.tiles) == 0:
             self.reset_game(self.boardlen)
 
@@ -212,7 +154,7 @@ class Game:
                   boardlen: int = DEFAULT_BOARDLEN,
                   player1: Player = None,
                   player2: Player = None) -> Dict[Player, int]:
-        """Plays a full game between player1 and player2 on a boardlen board
+
 
         Args:
             boardlen (int, optional): Size of the board (width/length).
@@ -226,14 +168,14 @@ class Game:
 
         Returns:
             Dict[Player, int]: score for each Player object
-        """
+
         if not player1 or not player2 and len(self.players) < 2:
             raise ValueError('No players were given when play_game was called')
 
-        if player1 and player2:
-            self.add_players(*self.players)
+        if not player1 and not player2:
+            self.reset_game(boardlen, *self.players)
         else:
-            raise ValueError('Invalid player(s): {player1} or {player2}')
+            self.reset_game(boardlen, player1, player2)
 
         while not self.finished():
             self.play_move(*self.cur_player.play(
@@ -249,7 +191,7 @@ class Game:
 
     def play_tournament(self, players: list,
                         boardlen: int = DEFAULT_BOARDLEN) -> Dict[Player, int]:
-        """Play a tournament where each player place twice against all others
+
 
         Notes:
             - Each player plays against each other player *twice*: once as
@@ -268,7 +210,7 @@ class Game:
 
         Returns:
             Dict[Player, int]: score for each Player object
-        """
+
         t_scores = {p: 0 for p in players}
 
         for (p1, p2) in itertools.permutations(players, 2):
@@ -287,7 +229,7 @@ class Game:
         return t_scores
 
     def play_move(self, position: Tuple[int, int], item: int = 0) -> None:
-        """Plays one move
+
 
         Args:
             position (Tuple[int, int]): Board position that is played
@@ -298,7 +240,7 @@ class Game:
             IndexError: if position is not a valid board position
             ValueError: - if the position is already taken or
                         - if a Stone/Tile is played that player doesn't have
-        """
+
         try:
             cur_value = self.board[position]
         except IndexError:
@@ -339,11 +281,11 @@ class Game:
         self.cur_player = players[(cur_player_idx + 1) % len(players)]
 
     def players_score(self) -> Dict[Player, int]:
-        """Returns the score of all players
+
 
         Returns:
             Dict[Player, int]: score for each Player object
-        """
+
         scores = dict.fromkeys(self.players, 0)
 
         for (x, y), value in numpy.ndenumerate(self.board):
@@ -364,21 +306,21 @@ class Game:
         return scores
 
     def finished(self) -> bool:
-        """Returns True if the game is over and False if it isn't
+
 
         Returns:
             bool: True if the game is over and False if it isn't
-        """
+
         n = numpy.sum(self.board == numpy.array(None))
         logging.debug(f'{n} / {self.boardlen ** 2} board positions empty')
         return n == 0
 
     def __str__(self) -> str:
-        """Printable version of the board, players state and current score
+
 
         Returns:
             str: string representation of the game, players state and score
-        """
+
         output = 'Board:\n'
         output += str(self.board)
         for p in self.players:
@@ -398,3 +340,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+"""
