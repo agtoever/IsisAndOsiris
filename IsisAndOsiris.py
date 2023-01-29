@@ -4,7 +4,7 @@ import json
 import subprocess
 import itertools
 import logging
-from typing import Dict, Tuple
+from typing import Dict, Tuple, Optional
 
 LOG_LEVEL = logging.ERROR
 logging.basicConfig(format='[%(levelname)s] [%(asctime)s] '
@@ -15,6 +15,7 @@ logging.basicConfig(format='[%(levelname)s] [%(asctime)s] '
 class NpEncoder(json.JSONEncoder):
     """Encodes Python data, including numpy array to json string
     """
+
     def default(self, obj: object) -> object:
         """Default encoder for encoding obj object
 
@@ -39,7 +40,8 @@ class Player:
         # You may initialise class attributes here...
         pass
 
-    def play(board: numpy.ndarray,
+    def play(self,
+             board: numpy.ndarray,
              cur_player: str,
              players: Dict[str, Dict[str, object]],
              scores: Dict['Player', int]) -> Tuple[Tuple[int, int], int]:
@@ -108,16 +110,12 @@ class Game:
     MAX_TILE_VALUE = 4
     DEFAULT_BOARDLEN = 8
 
-    board: numpy.ndarray
-    boardlen: int
-    players: Dict[Player, Dict[str, object]]
-    cur_player: Player
-    tiles: dict
-
     def __init__(self, boardlen: int = DEFAULT_BOARDLEN):
-        self.boardlen = boardlen
-        self.cur_player = None
-        self.players = {}
+        self.board: Optional[numpy.ndarray] = None
+        self.boardlen: int = boardlen
+        self.cur_player: Optional[Player] = None
+        self.players: Dict[Player, Dict[str, object]] = {}
+        self.tiles: Dict[int, int] = {}
         self.reset_game(boardlen)
         logging.debug('Initialized game')
 
@@ -186,9 +184,9 @@ class Game:
 
         for player in (player1, player2):
             self.players[player] = {
-                    'Stones': self.boardlen ** 2 // 4,
-                    'Tiles': dict(self.tiles)
-                }
+                'Stones': self.boardlen ** 2 // 4,
+                'Tiles': dict(self.tiles)
+            }
         logging.debug(f'Added players. Players: {self.players}')
 
     def play_game(self,
