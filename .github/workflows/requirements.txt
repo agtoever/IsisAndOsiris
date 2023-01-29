@@ -1,0 +1,8 @@
+bandit
+black
+dlint
+flake8
+flake8-bugbear
+flake8-deprecated
+flake8-executable
+safety
